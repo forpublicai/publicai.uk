@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e \"const m = require\\(''@ai-sdk/react''\\); const uc = m.useChat; console.log\\(typeof uc\\)\")"
+    ]
+  }
+}

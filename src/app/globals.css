@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-sans, ui-sans-serif), system-ui, sans-serif;
+  --font-serif: var(--font-serif, Georgia), serif;
+  --color-pa-red: #8c1515;
+}
+
+/* Public AI UK demo — dark red-tinted chat background */
+.demo-red-chat-bg {
+  background-color: #0f0a0a;
+  background-image: repeating-linear-gradient(
+      125deg,
+      rgba(140, 21, 21, 0.04) 0px,
+      rgba(140, 21, 21, 0.04) 1px,
+      transparent 1px,
+      transparent 14px
+    ),
+    repeating-linear-gradient(
+      -125deg,
+      rgba(140, 21, 21, 0.03) 0px,
+      rgba(140, 21, 21, 0.03) 1px,
+      transparent 1px,
+      transparent 16px
+    );
+}
