@@ -9,7 +9,15 @@ type Liveness = "green" | "yellow" | "red";
 
 const PA_RED = "#8C1515";
 
-const AGENTS: { id: string; label: string }[] = [
+export interface ExtraChatAgent {
+  id: string;
+  label: string;
+  kind: "org" | "person";
+  source?: "directory" | "signal";
+  phone?: string;
+}
+
+const BASE_AGENTS: { id: string; label: string }[] = [
   { id: "bbc-news", label: "BBC News" },
   { id: "bbc-studios", label: "BBC Studios" },
   { id: "nhs", label: "NHS" },
@@ -17,7 +25,7 @@ const AGENTS: { id: string; label: string }[] = [
   { id: "govuk", label: "Gov.uk" },
 ];
 
-const AGENT_ORDER = new Map(AGENTS.map((a, i) => [a.id, i]));
+const AGENT_ORDER = new Map(BASE_AGENTS.map((a, i) => [a.id, i]));
 
 /** Demo phone shortcuts — institutional contact / helpline style */
 const AGENT_PHONE: Partial<Record<string, string>> = {
@@ -243,6 +251,11 @@ interface InChatPaneProps {
   isStreaming: boolean;
   chatSessionId: number;
   onSuggestedQuery?: (mode: ModeId, text: string) => void;
+  extraAgents?: ExtraChatAgent[];
+  onAddAgents?: (agents: ExtraChatAgent[]) => void;
+  organizationDirectory?: ExtraChatAgent[];
+  peopleDirectory?: ExtraChatAgent[];
+  signalContacts?: ExtraChatAgent[];
 }
 
 export function InChatPane({
@@ -251,6 +264,11 @@ export function InChatPane({
   isStreaming,
   chatSessionId,
   onSuggestedQuery,
+  extraAgents = [],
+  onAddAgents,
+  organizationDirectory = [],
+  peopleDirectory = [],
+  signalContacts = [],
 }: InChatPaneProps) {
   const [removedIds, setRemovedIds] = useState<string[]>([]);
   const [invokedIds, setInvokedIds] = useState<Set<string>>(() => new Set());
@@ -259,6 +277,12 @@ export function InChatPane({
     id: string;
     rect: DOMRect;
   } | null>(null);
+  const addActionMenuRef = useRef<HTMLDivElement>(null);
+  const addPanelRef = useRef<HTMLDivElement>(null);
+  const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+  const [addMode, setAddMode] = useState<"org" | "person" | "signal" | null>(null);
+  const [directoryQuery, setDirectoryQuery] = useState("");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const profileCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const cancelProfileClose = useCallback(() => {
@@ -283,6 +307,31 @@ export function InChatPane({
   }, []);
 
   useEffect(() => {
+    if (!isAddMenuOpen && !addMode) return;
+    const onMouseDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      const insideAction = addActionMenuRef.current?.contains(target) ?? false;
+      const insidePanel = addPanelRef.current?.contains(target) ?? false;
+      if (!insideAction && !insidePanel) {
+        setIsAddMenuOpen(false);
+        setAddMode(null);
+      }
+    };
+    const onEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsAddMenuOpen(false);
+        setAddMode(null);
+      }
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    document.addEventListener("keydown", onEscape);
+    return () => {
+      document.removeEventListener("mousedown", onMouseDown);
+      document.removeEventListener("keydown", onEscape);
+    };
+  }, [isAddMenuOpen, addMode]);
+
+  useEffect(() => {
     setInvokedIds(new Set());
   }, [chatSessionId]);
 
@@ -305,6 +354,51 @@ export function InChatPane({
     setRemovedIds([]);
   }, []);
 
+  const mergedAgents = useMemo(
+    () => [...BASE_AGENTS, ...extraAgents.map((a) => ({ id: a.id, label: a.label }))],
+    [extraAgents]
+  );
+
+  const currentDirectory =
+    addMode === "org"
+      ? organizationDirectory
+      : addMode === "person"
+        ? peopleDirectory
+        : addMode === "signal"
+          ? signalContacts
+          : [];
+
+  const filteredDirectory = currentDirectory.filter((entry) =>
+    entry.label.toLowerCase().includes(directoryQuery.trim().toLowerCase())
+  );
+
+  const selectedCount = selectedIds.size;
+
+  const openDirectory = (mode: "org" | "person" | "signal") => {
+    setIsAddMenuOpen(false);
+    setAddMode(mode);
+    setDirectoryQuery("");
+    setSelectedIds(new Set());
+  };
+
+  const toggleSelected = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const confirmAdd = () => {
+    if (!onAddAgents || !addMode) return;
+    const additions = currentDirectory.filter((entry) => selectedIds.has(entry.id));
+    onAddAgents(additions);
+    setAddMode(null);
+    setSelectedIds(new Set());
+    setDirectoryQuery("");
+  };
+
   const profilePopover =
     profileAnchor &&
     PROFILES[profileAnchor.id] &&
@@ -317,7 +411,8 @@ export function InChatPane({
           const vw = window.innerWidth;
           /* Flush to the row’s right edge so the cursor can move into the panel without crossing a dead zone */
           const left = Math.max(gap, Math.min(rect.right, vw - gap - panelW));
-          const label = AGENTS.find((a) => a.id === profileAnchor.id)?.label ?? profileAnchor.id;
+          const label =
+            mergedAgents.find((a) => a.id === profileAnchor.id)?.label ?? profileAnchor.id;
           return createPortal(
             <div
               role="dialog"
@@ -365,14 +460,19 @@ export function InChatPane({
       : null;
 
   const sortedVisibleAgents = useMemo(() => {
-    const list = AGENTS.filter((a) => !removedIds.includes(a.id));
+    const list = mergedAgents.filter((a) => !removedIds.includes(a.id));
     return list.sort((a, b) => {
       const aGreen = invokedIds.has(a.id) ? 1 : 0;
       const bGreen = invokedIds.has(b.id) ? 1 : 0;
       if (bGreen !== aGreen) return bGreen - aGreen;
-      return (AGENT_ORDER.get(a.id) ?? 0) - (AGENT_ORDER.get(b.id) ?? 0);
+      const aOrder = AGENT_ORDER.get(a.id);
+      const bOrder = AGENT_ORDER.get(b.id);
+      if (aOrder != null && bOrder != null) return aOrder - bOrder;
+      if (aOrder != null) return -1;
+      if (bOrder != null) return 1;
+      return a.label.localeCompare(b.label);
     });
-  }, [removedIds, invokedIds]);
+  }, [mergedAgents, removedIds, invokedIds]);
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-[#0f0a0a]">
@@ -381,19 +481,124 @@ export function InChatPane({
         style={{ borderColor: `${PA_RED}33` }}
       >
         <h2 className="text-[15px] font-semibold text-[#e9edef]">In chat</h2>
-        <button
-          type="button"
-          onClick={restoreAllAgents}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#a89898] hover:bg-[#2a1f1f] hover:text-[#e9edef] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8c1515]/50 disabled:pointer-events-none disabled:opacity-25"
-          aria-label="Add agents back to chat"
-          disabled={removedIds.length === 0}
-          title="Restore all agents"
-        >
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-          </svg>
-        </button>
+        <div ref={addActionMenuRef} className="relative">
+          <button
+            type="button"
+            onClick={() => {
+              setIsAddMenuOpen((prev) => !prev);
+              setAddMode(null);
+            }}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[#a89898] hover:bg-[#2a1f1f] hover:text-[#e9edef] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8c1515]/50"
+            aria-label="Add items to chat"
+            title="Add"
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
+          {isAddMenuOpen && (
+            <div className="absolute right-0 top-[calc(100%+0.4rem)] z-50 w-44 rounded-lg border border-[#3d2828] bg-[#141010] p-1.5 shadow-xl shadow-black/60">
+              <button
+                type="button"
+                onClick={() => openDirectory("org")}
+                className="block w-full rounded-md px-2.5 py-2 text-left text-xs font-medium text-[#e9edef] hover:bg-[#1f1818]"
+              >
+                Add organisation
+              </button>
+              <button
+                type="button"
+                onClick={() => openDirectory("person")}
+                className="mt-1 block w-full rounded-md px-2.5 py-2 text-left text-xs font-medium text-[#e9edef] hover:bg-[#1f1818]"
+              >
+                Add person
+              </button>
+              <button
+                type="button"
+                onClick={() => openDirectory("signal")}
+                className="mt-1 block w-full rounded-md px-2.5 py-2 text-left text-xs font-medium text-[#e9edef] hover:bg-[#1f1818]"
+              >
+                Import from Signal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  restoreAllAgents();
+                  setIsAddMenuOpen(false);
+                }}
+                className="mt-1 block w-full rounded-md px-2.5 py-2 text-left text-xs font-medium text-[#a89898] hover:bg-[#1f1818] hover:text-[#e9edef]"
+              >
+                Restore removed
+              </button>
+            </div>
+          )}
+        </div>
       </div>
+
+      {addMode && (
+        <div ref={addPanelRef} className="border-b border-[#3d2828] bg-[#141010] px-2 py-2">
+          <div className="rounded-xl border border-[#3d2828] bg-[#1a1212] p-2">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#a89898]">
+                {addMode === "org"
+                  ? "Add organisations"
+                  : addMode === "person"
+                    ? "Add people"
+                    : "Import from Signal"}
+              </p>
+              <button
+                type="button"
+                onClick={() => setAddMode(null)}
+                className="rounded px-2 py-0.5 text-xs text-[#a89898] hover:bg-[#2a1f1f] hover:text-[#e9edef]"
+              >
+                Close
+              </button>
+            </div>
+            <input
+              value={directoryQuery}
+              onChange={(e) => setDirectoryQuery(e.target.value)}
+              placeholder={`Search ${addMode === "org" ? "organisations" : "contacts"}`}
+              className="mb-2 w-full rounded-lg border border-[#3d2828] bg-[#141010] px-2.5 py-1.5 text-xs text-[#e9edef] placeholder:text-[#7a6a6a] focus:outline-none focus:ring-2 focus:ring-[#8c1515]/50"
+            />
+            <div className="max-h-40 overflow-y-auto rounded-lg border border-[#3d2828] bg-[#141010]">
+              {filteredDirectory.length === 0 ? (
+                <p className="px-2.5 py-2 text-xs text-[#7a6a6a]">No matches found.</p>
+              ) : (
+                filteredDirectory.map((entry) => {
+                  const checked = selectedIds.has(entry.id);
+                  return (
+                    <label
+                      key={entry.id}
+                      className="flex cursor-pointer items-center gap-2 border-b border-[#2a2020] px-2.5 py-2 last:border-b-0 hover:bg-[#1f1818]"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleSelected(entry.id)}
+                        className="h-3.5 w-3.5 rounded border-[#5a4a4a] bg-[#141010] text-[#8c1515] focus:ring-[#8c1515]"
+                      />
+                      <span className="truncate text-xs text-[#e9edef]">{entry.label}</span>
+                      {entry.source === "signal" && (
+                        <span className="ml-auto text-[10px] text-[#8a7a7a]">Signal</span>
+                      )}
+                    </label>
+                  );
+                })
+              )}
+            </div>
+            <div className="mt-2 flex items-center justify-between">
+              <p className="text-[11px] text-[#8a7a7a]">{selectedCount} selected</p>
+              <button
+                type="button"
+                onClick={confirmAdd}
+                disabled={selectedCount === 0}
+                className="rounded-full bg-[#8c1515] px-3 py-1 text-xs font-semibold text-white hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Add to chat
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div
         className="flex-1 overflow-y-auto px-1.5 pb-2 pt-1"
         onScroll={() => setProfileAnchor(null)}
@@ -408,7 +613,15 @@ export function InChatPane({
               const transient = liveness(agent.id, toolInvocations, isStreaming, activeMode);
               const status: Liveness = invokedIds.has(agent.id) ? "green" : transient;
               const profile = PROFILES[agent.id];
-              const subtitle = statusSubtitle(invokedIds.has(agent.id), transient, isStreaming);
+              const extra = extraAgents.find((a) => a.id === agent.id);
+              const subtitle = extra
+                ? extra.source === "signal"
+                  ? "Imported from Signal"
+                  : extra.kind === "person"
+                    ? "Direct contact"
+                    : "Available to message"
+                : statusSubtitle(invokedIds.has(agent.id), transient, isStreaming);
+              const phoneHref = AGENT_PHONE[agent.id] ?? extra?.phone;
               return (
                 <li key={agent.id} className="relative list-none">
                   <div
@@ -426,9 +639,9 @@ export function InChatPane({
                             <span className="min-w-0 truncate font-medium leading-tight">
                               {agent.label}
                             </span>
-                            {AGENT_PHONE[agent.id] && (
+                            {phoneHref && (
                               <a
-                                href={AGENT_PHONE[agent.id]}
+                                href={phoneHref}
                                 className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-[#3d2828] bg-[#141010] text-[#b89898] hover:border-[#8c1515]/45 hover:bg-[#1f1818] hover:text-[#e9edef] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8c1515]/45"
                                 aria-label={`Call ${agent.label}`}
                                 title="Phone"

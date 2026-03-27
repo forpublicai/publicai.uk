@@ -23,3 +23,9 @@
 **Why:** The current justice mode uses statute and GOV.UK guidance, not case law. Real case law results would make the justice demo significantly more compelling to a legal audience.
 **Context:** BAILII currently has no public API. Monitor for changes. The Judiciary's published judgments at judiciary.gov.uk could be a partial alternative.
 **Effort:** M (human: ~3 days) → S with CC (~30 min once API exists)
+
+### Explore Signal fork for production messenger
+**What:** Evaluate forking Signal's open-source client and server code as the foundation for a production-quality Public AI messenger app.
+**Why:** Signal provides mature encrypted messaging UX and infrastructure patterns that could accelerate delivery of a robust Public AI messenger.
+**Context:** Run a feasibility study covering license constraints, hosting/ops complexity, protocol compatibility, account model, moderation/safety requirements, and integration points for Public AI agents/tool-calls.
+**Effort:** L (human: ~1-2 weeks discovery) → M with CC (~2-4 hours for initial technical/architecture assessment)

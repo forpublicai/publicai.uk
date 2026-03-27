@@ -1,8 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { type Message, type ToolInvocation } from "ai";
+import EmojiPicker, { Theme, type EmojiClickData } from "emoji-picker-react";
 import { type ModeId } from "@/lib/modes";
 
 const SESSION_LIMIT = 10;
@@ -57,7 +58,7 @@ function MessageBubble({ message }: { message: Message }) {
         </div>
       ) : (
         <div className="max-w-[min(85%,520px)] rounded-lg rounded-tl-sm bg-[#1f1818] px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap text-[#e9edef] shadow-sm ring-1 ring-white/5">
-          {content || <LoadingDots />}
+          {content}
         </div>
       )}
     </div>
@@ -99,8 +100,10 @@ export function ChatPanel({
 }: ChatPanelProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const emojiMenuRef = useRef<HTMLDivElement>(null);
   const limitReached = questionCount >= SESSION_LIMIT;
   const isEmptyConversation = messages.length === 0;
+  const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
   const showStarters =
     Boolean(examplePrompts?.length && onPickExample) && isEmptyConversation && !isLoading;
 
@@ -108,8 +111,31 @@ export function ChatPanel({
     const el = scrollContainerRef.current;
     if (!el) return;
     if (showStarters) return;
-    el.scrollTop = el.scrollHeight;
-  }, [messages, isLoading, showStarters]);
+    const lastMessage = messages[messages.length - 1];
+    // Scroll once when the user submits; do not keep forcing scroll during streaming.
+    if (lastMessage?.role === "user") {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [messages.length, showStarters]);
+
+  useEffect(() => {
+    if (!isEmojiPickerOpen) return;
+    const onMouseDown = (e: MouseEvent) => {
+      if (!emojiMenuRef.current) return;
+      if (!emojiMenuRef.current.contains(e.target as Node)) {
+        setIsEmojiPickerOpen(false);
+      }
+    };
+    const onEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsEmojiPickerOpen(false);
+    };
+    document.addEventListener("mousedown", onMouseDown);
+    document.addEventListener("keydown", onEscape);
+    return () => {
+      document.removeEventListener("mousedown", onMouseDown);
+      document.removeEventListener("keydown", onEscape);
+    };
+  }, [isEmojiPickerOpen]);
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -118,6 +144,34 @@ export function ChatPanel({
         onSubmit(e as unknown as React.FormEvent);
       }
     }
+  };
+
+  const insertEmoji = (emoji: string) => {
+    if (isLoading || limitReached) return;
+    const textarea = inputRef.current;
+    if (!textarea) {
+      if ((input + emoji).length <= 500) onInputChange(input + emoji);
+      return;
+    }
+
+    const start = textarea.selectionStart ?? input.length;
+    const end = textarea.selectionEnd ?? input.length;
+    const nextValue = `${input.slice(0, start)}${emoji}${input.slice(end)}`;
+    if (nextValue.length > 500) return;
+
+    onInputChange(nextValue);
+
+    // Keep cursor after inserted emoji for a natural typing flow.
+    requestAnimationFrame(() => {
+      textarea.focus();
+      const nextPos = start + emoji.length;
+      textarea.setSelectionRange(nextPos, nextPos);
+    });
+  };
+
+  const handleEmojiSelect = (emojiData: EmojiClickData) => {
+    insertEmoji(emojiData.emoji);
+    setIsEmojiPickerOpen(false);
   };
 
   void allToolInvocations;
@@ -172,14 +226,14 @@ export function ChatPanel({
       >
         {showStarters ? (
           <div className="flex min-h-[min(260px,40vh)] flex-1 flex-col items-center justify-center gap-5 px-4 py-10">
-            {/* object-contain + padding so the ≥ mark isn’t cropped by rounded masks */}
-            <div className="relative flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-2xl bg-[#1a1212] p-3 ring-2 ring-[#8c1515]/35">
+            {/* Force centered edge-fill so the mark occupies the full tile */}
+            <div className="relative h-[72px] w-[72px] shrink-0 overflow-hidden rounded-2xl bg-[#1a1212] ring-2 ring-[#8c1515]/35">
               <Image
                 src="/logo-mark.png"
                 alt=""
-                width={80}
-                height={80}
-                className="h-full w-full object-contain object-center"
+                fill
+                sizes="72px"
+                className="object-cover object-center scale-[1.22]"
                 priority
               />
             </div>
@@ -209,9 +263,11 @@ export function ChatPanel({
           </div>
         ) : (
           <div className="space-y-3">
-            {messages.map((m) => (
-              <MessageBubble key={m.id} message={m} />
-            ))}
+            {messages
+              .filter((m) => !(m.role === "assistant" && !String(m.content ?? "").trim()))
+              .map((m) => (
+                <MessageBubble key={m.id} message={m} />
+              ))}
             {isLoading && messages[messages.length - 1]?.role === "user" && (
               <div className="flex flex-col items-start">
                 <div className="rounded-lg rounded-tl-sm bg-[#1f1818] px-3 py-2 text-sm shadow-sm ring-1 ring-white/5">
@@ -237,18 +293,66 @@ export function ChatPanel({
         </div>
       )}
 
-      {/* Condensed composer — emoji, voice, attach + field + send */}
-      <div className="border-t border-[#3d2828] bg-[#1a1212] px-2 py-1.5">
-        <div className="flex items-center gap-0.5 rounded-2xl border border-[#3d2828] bg-[#141010] px-1 py-0.5">
-          <IconButton label="Emoji">
-            <svg className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+      {/* Signal-style composer: controls outside the message pill */}
+      <div className="bg-[#0f0a0a] px-2 py-1.5">
+        <div className="flex items-center gap-1">
+          <div ref={emojiMenuRef} className="relative">
+            <IconButton
+              label="Emoji"
+              onClick={() => setIsEmojiPickerOpen((prev) => !prev)}
+            >
+              <svg className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+            </IconButton>
+            {isEmojiPickerOpen && (
+              <div className="absolute bottom-[calc(100%+0.5rem)] left-0 z-50 rounded-lg border border-[#3d2828] bg-[#141010] p-1 shadow-xl shadow-black/60">
+                <EmojiPicker
+                  onEmojiClick={handleEmojiSelect}
+                  lazyLoadEmojis
+                  theme={Theme.DARK}
+                  searchPlaceHolder="Search emoji"
+                  previewConfig={{ showPreview: false }}
+                  skinTonesDisabled
+                  width={300}
+                  height={360}
+                />
+              </div>
+            )}
+          </div>
+          <div className="min-w-0 flex-1 rounded-full bg-[#3b3b3d] px-2 py-0.5">
+            <div className="flex items-center gap-1">
+              <textarea
+                ref={inputRef}
+                value={input}
+                onChange={(e) => {
+                  if (e.target.value.length <= 500) onInputChange(e.target.value);
+                }}
+                onKeyDown={handleKeyDown}
+                placeholder={limitReached ? "Session limit reached" : "Message"}
+                disabled={isLoading || limitReached}
+                rows={1}
+                aria-label="Ask a question"
+                className="mx-0.5 min-h-[30px] max-h-[100px] min-w-0 flex-1 resize-none rounded-lg border-0 bg-transparent py-1 text-[14px] leading-snug text-[#e9edef] placeholder:text-[#c8c8cb] focus:outline-none focus:ring-0 disabled:cursor-not-allowed disabled:opacity-50"
               />
-            </svg>
-          </IconButton>
+              <button
+                type="button"
+                onClick={onSubmit}
+                disabled={isLoading || limitReached || !input.trim()}
+                aria-label="Send"
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[14px] font-semibold leading-none text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-30"
+                style={{ backgroundColor: RED }}
+              >
+                <span aria-hidden className="translate-y-px">
+                  ↑
+                </span>
+              </button>
+            </div>
+          </div>
           <IconButton label="Voice message">
             <svg className="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path
@@ -263,31 +367,6 @@ export function ChatPanel({
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
             </svg>
           </IconButton>
-          <textarea
-            ref={inputRef}
-            value={input}
-            onChange={(e) => {
-              if (e.target.value.length <= 500) onInputChange(e.target.value);
-            }}
-            onKeyDown={handleKeyDown}
-            placeholder={limitReached ? "Session limit reached" : "Message"}
-            disabled={isLoading || limitReached}
-            rows={1}
-            aria-label="Ask a question"
-            className="mx-0.5 min-h-[32px] max-h-[100px] min-w-0 flex-1 resize-none rounded-lg border-0 bg-transparent py-1.5 text-[14px] leading-snug text-[#e9edef] placeholder:text-[#7a6a6a] focus:outline-none focus:ring-0 disabled:cursor-not-allowed disabled:opacity-50"
-          />
-          <button
-            type="button"
-            onClick={onSubmit}
-            disabled={isLoading || limitReached || !input.trim()}
-            aria-label="Send"
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[15px] font-semibold leading-none text-white shadow-sm transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-30"
-            style={{ backgroundColor: RED }}
-          >
-            <span aria-hidden className="translate-y-px">
-              ↑
-            </span>
-          </button>
         </div>
         {input.length > 400 && (
           <p className="mt-1 text-right text-[10px] text-[#7a6a6a]">{input.length}/500</p>

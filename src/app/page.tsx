@@ -6,7 +6,7 @@ import { useChat } from "ai/react";
 import { type ToolInvocation } from "ai";
 import { inflate } from "pako";
 import { ChatPanel } from "@/components/demo/ChatPanel";
-import { InChatPane } from "@/components/demo/InChatPane";
+import { InChatPane, type ExtraChatAgent } from "@/components/demo/InChatPane";
 import { modes, type ModeId } from "@/lib/modes";
 
 type TourStepId = "hero" | "bbc" | "justice" | "planning" | "trust" | "technology";
@@ -139,10 +139,82 @@ const representativePrompts: Record<ModeId, string> = {
   planning: "There's a planning application for flats on my street — how do I object?",
 };
 
+const ORG_DIRECTORY: ExtraChatAgent[] = [
+  { id: "hmrc", label: "HMRC", kind: "org", source: "directory" },
+  { id: "dvla", label: "DVLA", kind: "org", source: "directory" },
+  { id: "nhs-england", label: "NHS England", kind: "org", source: "directory" },
+  { id: "nhs-111", label: "NHS 111", kind: "org", source: "directory", phone: "tel:111" },
+  { id: "ofcom", label: "Ofcom", kind: "org", source: "directory" },
+  { id: "ofgem", label: "Ofgem", kind: "org", source: "directory" },
+  { id: "dwp", label: "DWP", kind: "org", source: "directory" },
+  { id: "home-office", label: "Home Office", kind: "org", source: "directory" },
+  { id: "companies-house", label: "Companies House", kind: "org", source: "directory" },
+  { id: "land-registry", label: "HM Land Registry", kind: "org", source: "directory" },
+  { id: "environment-agency", label: "Environment Agency", kind: "org", source: "directory" },
+  { id: "food-standards", label: "Food Standards Agency", kind: "org", source: "directory" },
+  { id: "citizens-advice", label: "Citizens Advice", kind: "org", source: "directory" },
+  { id: "age-uk", label: "Age UK", kind: "org", source: "directory" },
+  { id: "shelter", label: "Shelter", kind: "org", source: "directory" },
+  { id: "mind", label: "Mind", kind: "org", source: "directory" },
+  { id: "scope", label: "Scope", kind: "org", source: "directory" },
+  { id: "rnib", label: "RNIB", kind: "org", source: "directory" },
+  { id: "macmillan", label: "Macmillan Cancer Support", kind: "org", source: "directory" },
+  { id: "barnardos", label: "Barnardo's", kind: "org", source: "directory" },
+  { id: "nspcc", label: "NSPCC", kind: "org", source: "directory" },
+  { id: "british-red-cross", label: "British Red Cross", kind: "org", source: "directory" },
+  { id: "national-trust", label: "National Trust", kind: "org", source: "directory" },
+  { id: "which", label: "Which?", kind: "org", source: "directory" },
+  { id: "sainsburys", label: "Sainsbury's", kind: "org", source: "directory" },
+  { id: "waitrose", label: "Waitrose", kind: "org", source: "directory" },
+  { id: "tesco", label: "Tesco", kind: "org", source: "directory" },
+  { id: "asda", label: "Asda", kind: "org", source: "directory" },
+  { id: "morrisons", label: "Morrisons", kind: "org", source: "directory" },
+  { id: "marks-spencer", label: "Marks & Spencer", kind: "org", source: "directory" },
+  { id: "boots", label: "Boots", kind: "org", source: "directory" },
+  { id: "john-lewis", label: "John Lewis", kind: "org", source: "directory" },
+  { id: "coop", label: "Co-op", kind: "org", source: "directory" },
+  { id: "ocado", label: "Ocado", kind: "org", source: "directory" },
+  { id: "aldi", label: "Aldi UK", kind: "org", source: "directory" },
+  { id: "lidl", label: "Lidl GB", kind: "org", source: "directory" },
+  { id: "nationwide", label: "Nationwide", kind: "org", source: "directory" },
+  { id: "barclays", label: "Barclays", kind: "org", source: "directory" },
+  { id: "lloyds", label: "Lloyds Bank", kind: "org", source: "directory" },
+  { id: "natwest", label: "NatWest", kind: "org", source: "directory" },
+  { id: "halifax", label: "Halifax", kind: "org", source: "directory" },
+  { id: "monzo", label: "Monzo", kind: "org", source: "directory" },
+  { id: "starling", label: "Starling Bank", kind: "org", source: "directory" },
+  { id: "vodafone", label: "Vodafone UK", kind: "org", source: "directory" },
+  { id: "ee", label: "EE", kind: "org", source: "directory" },
+  { id: "o2", label: "O2", kind: "org", source: "directory" },
+  { id: "three", label: "Three UK", kind: "org", source: "directory" },
+  { id: "openreach", label: "Openreach", kind: "org", source: "directory" },
+  { id: "thames-water", label: "Thames Water", kind: "org", source: "directory" },
+  { id: "octopus-energy", label: "Octopus Energy", kind: "org", source: "directory" },
+];
+
+const PEOPLE_DIRECTORY: ExtraChatAgent[] = [
+  { id: "person-anna", label: "Anna Patel", kind: "person", source: "directory" },
+  { id: "person-james", label: "James Taylor", kind: "person", source: "directory" },
+  { id: "person-rachel", label: "Rachel Khan", kind: "person", source: "directory" },
+  { id: "person-tom", label: "Tom Williams", kind: "person", source: "directory" },
+  { id: "person-hannah", label: "Hannah Lewis", kind: "person", source: "directory" },
+  { id: "person-david", label: "David Morgan", kind: "person", source: "directory" },
+];
+
+const SIGNAL_CONTACTS: ExtraChatAgent[] = [
+  { id: "sig-olivia", label: "Olivia Evans", kind: "person", source: "signal", phone: "tel:+447700900111" },
+  { id: "sig-liam", label: "Liam Ahmed", kind: "person", source: "signal", phone: "tel:+447700900112" },
+  { id: "sig-grace", label: "Grace Thompson", kind: "person", source: "signal", phone: "tel:+447700900113" },
+  { id: "sig-noah", label: "Noah Singh", kind: "person", source: "signal", phone: "tel:+447700900114" },
+  { id: "sig-emily", label: "Emily Jones", kind: "person", source: "signal", phone: "tel:+447700900115" },
+  { id: "sig-arthur", label: "Arthur Green", kind: "person", source: "signal", phone: "tel:+447700900116" },
+];
+
 export default function Home() {
   const [isTourOpen, setIsTourOpen] = useState(false);
   const [activeStepIndex, setActiveStepIndex] = useState(0);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false);
   const activeStep = tourSteps[activeStepIndex];
 
   const nextStep = () => {
@@ -170,6 +242,7 @@ export default function Home() {
   const [restoredMode, setRestoredMode] = useState<ModeId | undefined>(undefined);
   const [isRestoringFromUrl, setIsRestoringFromUrl] = useState(true);
   const [chatSessionId, setChatSessionId] = useState(0);
+  const [extraAgents, setExtraAgents] = useState<ExtraChatAgent[]>([]);
 
   // Restore from ?c= permalink on mount
   useEffect(() => {
@@ -240,6 +313,7 @@ export default function Home() {
     setInput("");
     setQuestionCount(0);
     setChatSessionId((c) => c + 1);
+    setExtraAgents([]);
   };
 
   const handleModeButton = (mode: ModeId) => {
@@ -248,6 +322,7 @@ export default function Home() {
     setInput("");
     setQuestionCount(0);
     setChatSessionId((c) => c + 1);
+    setExtraAgents([]);
 
     setTimeout(() => {
       const el = document.querySelector(
@@ -266,6 +341,24 @@ export default function Home() {
         ?.focus();
     }, 0);
   };
+
+  const handleAddAgents = (agentsToAdd: ExtraChatAgent[]) => {
+    if (agentsToAdd.length === 0) return;
+    setExtraAgents((prev) => {
+      const known = new Set(prev.map((a) => a.id));
+      const additions = agentsToAdd.filter((a) => !known.has(a.id));
+      return [...prev, ...additions];
+    });
+  };
+
+  useEffect(() => {
+    if (!isAccountMenuOpen) return;
+    const onEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsAccountMenuOpen(false);
+    };
+    document.addEventListener("keydown", onEscape);
+    return () => document.removeEventListener("keydown", onEscape);
+  }, [isAccountMenuOpen]);
 
   if (isRestoringFromUrl) return null;
 
@@ -298,6 +391,7 @@ export default function Home() {
                 src="/public-AI-logo.png"
                 alt="Public AI"
                 fill
+                sizes="128px"
                 className="object-contain"
                 priority
               />
@@ -305,21 +399,72 @@ export default function Home() {
           </a>
 
           <div className="flex flex-1 justify-end items-center gap-3">
+            <div className="relative md:hidden">
+              <button
+                type="button"
+                onClick={() => setIsAccountMenuOpen((v) => !v)}
+                aria-label="Open account actions"
+                aria-expanded={isAccountMenuOpen}
+                aria-haspopup="menu"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-stone-300 text-stone-700 hover:bg-stone-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#f0442c]"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8} aria-hidden>
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.5 20.118a7.5 7.5 0 0115 0A17.933 17.933 0 0112 21.75a17.933 17.933 0 01-7.5-1.632z"
+                  />
+                </svg>
+              </button>
+              {isAccountMenuOpen && (
+                <div
+                  className="absolute right-0 top-[calc(100%+0.4rem)] z-40 w-40 rounded-xl border border-stone-200 bg-white p-1.5 shadow-xl"
+                  role="menu"
+                  aria-label="Account actions"
+                >
+                  <a
+                    href="/subscribe"
+                    role="menuitem"
+                    onClick={() => setIsAccountMenuOpen(false)}
+                    className="block rounded-lg px-3 py-2 text-sm font-semibold text-stone-700 hover:bg-stone-100"
+                  >
+                    Subscribe
+                  </a>
+                  <a
+                    href="/sign-in"
+                    role="menuitem"
+                    onClick={() => setIsAccountMenuOpen(false)}
+                    className="mt-1 block rounded-lg bg-[#f0442c] px-3 py-2 text-sm font-semibold text-white hover:bg-[#d33a24]"
+                  >
+                    Sign in
+                  </a>
+                </div>
+              )}
+            </div>
             <a
               href="/subscribe"
-              className="inline-flex items-center rounded-full border border-stone-300 px-4 py-1.5 text-xs md:text-sm font-semibold text-stone-800 hover:bg-stone-100"
+              className="hidden md:inline-flex items-center rounded-full border border-stone-300 px-4 py-1.5 text-xs md:text-sm font-semibold text-stone-800 hover:bg-stone-100"
             >
               Subscribe
             </a>
             <a
               href="/sign-in"
-              className="inline-flex items-center rounded-full bg-[#f0442c] px-4 py-1.5 text-xs md:text-sm font-semibold text-white hover:bg-[#d33a24] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#f0442c]"
+              className="hidden md:inline-flex items-center rounded-full bg-[#f0442c] px-4 py-1.5 text-xs md:text-sm font-semibold text-white hover:bg-[#d33a24] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#f0442c]"
             >
               Sign in
             </a>
           </div>
         </div>
       </header>
+
+      {isAccountMenuOpen && (
+        <button
+          type="button"
+          className="fixed inset-0 z-10 cursor-default bg-transparent md:hidden"
+          aria-label="Close account menu"
+          onClick={() => setIsAccountMenuOpen(false)}
+        />
+      )}
 
       {isMenuOpen && (
         <div
@@ -420,6 +565,11 @@ export default function Home() {
                     isStreaming={isLoading}
                     chatSessionId={chatSessionId}
                     onSuggestedQuery={handlePickExample}
+                    extraAgents={extraAgents}
+                    onAddAgents={handleAddAgents}
+                    organizationDirectory={ORG_DIRECTORY}
+                    peopleDirectory={PEOPLE_DIRECTORY}
+                    signalContacts={SIGNAL_CONTACTS}
                   />
                 </aside>
 
@@ -484,9 +634,9 @@ export default function Home() {
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#f0442c] mb-4">
             Public AI for the UK
           </p>
-          <h2 className="font-serif text-4xl md:text-5xl font-semibold leading-tight text-stone-900 mb-6 max-w-3xl">
+          <h1 className="font-serif text-4xl md:text-5xl font-semibold leading-tight text-stone-900 mb-6 max-w-3xl">
             Public AI that works with the institutions you already trust.
-          </h2>
+          </h1>
           <p className="text-xl text-stone-600 leading-relaxed max-w-2xl mb-8">
             A working prototype of what public AI infrastructure could look like in the UK —
             deployed alongside the BBC, the courts and local councils, grounded in real public

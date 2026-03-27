@@ -21,6 +21,7 @@ export default function SignInPage() {
                 src="/public-AI-logo.png"
                 alt="Public AI"
                 fill
+                sizes="128px"
                 className="object-contain"
                 priority
               />

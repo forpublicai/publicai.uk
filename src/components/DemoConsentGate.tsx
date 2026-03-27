@@ -56,14 +56,15 @@ export default function DemoConsentGate() {
                 src="/public-AI-logo.png"
                 alt="Public AI"
                 fill
+                sizes="112px"
                 className="object-contain"
                 priority
               />
             </div>
             <div className="min-w-0">
-              <h1 id="consent-title" className="font-serif text-lg font-semibold text-stone-900">
+              <h2 id="consent-title" className="font-serif text-lg font-semibold text-stone-900">
                 Research demo
-              </h1>
+              </h2>
               <p className="text-xs text-stone-500">Before you enter the site</p>
             </div>
           </div>

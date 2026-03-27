@@ -14,8 +14,9 @@
 
 ## Typography
 
-- **Display/Hero:** Georgia (system serif via `font-serif`) — carries authority, legibility, and a specifically British editorial register; used for all `h1`–`h3` headings and article titles
-- **Body:** System sans-serif (`ui-sans-serif, system-ui, sans-serif`) — clean, fast-loading, no web font overhead; used for body copy, UI labels, captions
+- **Display/Hero:** **Source Serif 4** (via `next/font` → `--font-serif` / `font-serif`) — editorial, authoritative; used for `h1`–`h3` and section titles
+- **Body:** **Source Sans 3** (`--font-sans` / `font-sans`) — body copy, UI labels, captions
+- **Note:** `layout.tsx` loads these Google fonts; fallbacks remain system UI stacks. Older docs referenced Georgia; implementation is Source Serif for consistency with Next/font subsetting.
 - **UI/Labels:** Same as body — `text-xs font-semibold uppercase tracking-[0.2em]` for eyebrow labels; this pattern is the site's most distinctive typographic signature — use it consistently
 - **Data/Tables / Code / Tool Trace:** `font-mono` (system mono) — used exclusively in the tool trace panel for log-line output; no new font dependency needed
 - **Loading:** System fonts only — zero flash of unstyled text, zero layout shift
@@ -29,8 +30,9 @@
 
 ## Color
 
-- **Approach:** Restrained — one strong accent (`#f0442c`), warm stone neutrals, colour is rare and meaningful
-- **Accent / Primary:** `#f0442c` — the defining red; used for eyebrow labels, active states, primary CTAs, mode switcher active underline, hover rings; hover variant `#d33a24`
+- **Approach:** Restrained — one strong **marketing** accent, warm stone neutrals, colour is rare and meaningful
+- **Accent / Primary (marketing):** `#f0442c` — eyebrow labels, primary CTAs, header links, consent checkbox; hover `#d33a24`
+- **Demo / embedded chat chrome:** `#8C1515` (primary burgundy) on dark surfaces (`#0f0a0a`, `#1a1212`, etc.) — **intentionally separate** from marketing orange-red so the live demo reads as a distinct “product window”
 - **Text primary:** `stone-900` (`#1c1917`) — headings, strong UI labels
 - **Text secondary:** `stone-600` (`#57534e`) — body copy, nav links, descriptions
 - **Text muted:** `stone-500` (`#78716c`) — captions, placeholder text, tool trace empty state
